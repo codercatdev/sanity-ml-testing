@@ -71,5 +71,40 @@ const directory = defineType({
     ],
 });
 
+// {
+//   "_createdAt": "2026-05-08T18:55:10Z",
+//   "_id": "7miJbm64XgYIxsADFlZ7xA",
+//   "_originalId": "7miJbm64XgYIxsADFlZ7xA",
+//     "_rev": "7miJbm64XgYIxsADFlZ7sG",
+//     "_type": "page",
+//     "_updatedAt": "2026-05-08T18:55:10Z",
+//     "parent": {
+//       "_ref": "7miJbm64XgYIxsADFlZ7F2",
+//       "_type": "reference"
+//     },
+//     "title": "Sneakers"
+// }
 
-export const schemaTypes = [tree, directory]
+const page = defineType({
+    name: "page",
+    type: "document",
+    title: "Page",
+    fields: [
+        {
+            name: "title",
+            type: "string",
+            title: "Title"
+        },
+        {
+            name: "parent",
+            type: "reference",
+            title: "Parent",
+            to: [
+                { type: "sanity.directory" },
+            ],
+        },
+    ],
+});
+
+
+export const schemaTypes = [tree, directory, page]
