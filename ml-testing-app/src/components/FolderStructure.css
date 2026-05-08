@@ -268,7 +268,7 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.directory-node.selected > .node-row {
+.directory-node.selected>.node-row {
   background: rgba(59, 130, 246, 0.15);
   border-left: 3px solid #3b82f6;
   color: #fff;
@@ -354,6 +354,7 @@
     opacity: 0;
     transform: translateY(-8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -494,12 +495,15 @@
   line-height: 1.4;
 }
 
-.move-controls, .release-controls {
+.move-controls,
+.release-controls {
   display: flex;
   gap: 8px;
+  flex-direction: column;
 }
 
-.move-controls select, .release-controls input {
+.move-controls select,
+.release-controls input {
   flex-grow: 1;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -514,7 +518,8 @@
   color: #fff;
 }
 
-.btn-move, .btn-release {
+.btn-move,
+.btn-release {
   background: #2563eb;
   border: none;
   border-radius: 8px;
@@ -598,7 +603,9 @@
   margin-bottom: 24px;
 }
 
-.loading-item, .loading-main, .loading-node {
+.loading-item,
+.loading-main,
+.loading-node {
   color: #9ca3af;
   padding: 12px;
   font-style: italic;
@@ -612,4 +619,26 @@
   height: 100%;
   text-align: center;
   padding: 40px;
+}
+
+.search-box {
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
 }
