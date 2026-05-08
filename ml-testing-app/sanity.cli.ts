@@ -1,11 +1,15 @@
 import { defineCliConfig } from 'sanity/cli'
 import { loadEnv } from 'vite'
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables at the top level to ensure they are available
 // when defineCliConfig is evaluated (such as for organizationId).
 const mode = process.env.NODE_ENV === 'production' ? 'production' : 'development';
-const envDir = path.resolve(process.cwd(), '..');
+const envDir = path.resolve(__dirname, '..');
 const env = loadEnv(mode, envDir, '');
 
 // Populate process.env with the loaded variables

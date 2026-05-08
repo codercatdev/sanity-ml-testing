@@ -1,13 +1,16 @@
-import { useState, useTransition, Suspense, useRef } from 'react'
+import { useState, Suspense } from 'react'
 import {
   useDocuments,
   useDocument,
   useDocumentProjection,
   useEditDocument,
   useApplyDocumentActions,
+  useQuery,
+  createDocument,
+  createDocumentHandle,
+  deleteDocument,
   type DocumentHandle,
 } from '@sanity/sdk-react'
-import { createClient } from '@sanity/client'
 import {
   FolderIcon,
   DocumentIcon,
@@ -24,19 +27,12 @@ import {
 } from '@sanity/icons'
 import './FolderStructure.css'
 
-// Standard client for mutations, using the exact config from index.js
-const client = createClient({
-  projectId: import.meta.env.VITE_SANITY_PROJECT_ID,
-  dataset: import.meta.env.VITE_SANITY_DATASET,
-  useCdn: false,
-  token: import.meta.env.VITE_SANITY_API_TOKEN,
-  apiVersion: import.meta.env.VITE_SANITY_API_VERSION,
-})
-
 export function FolderStructure() {
   const { data: treeHandles } = useDocuments({ documentType: 'sanity.tree' })
   const { data: directoryHandles } = useDocuments({ documentType: 'sanity.directory' })
   const { data: pageHandles } = useDocuments({ documentType: 'page' })
+
+  const apply = useApplyDocumentActions()
 
   const [selectedTreeId, setSelectedTreeId] = useState<string | null>('root-tree')
   const [selectedItem, setSelectedItem] = useState<{ handle: DocumentHandle; data: any } | null>(null)
@@ -50,17 +46,19 @@ export function FolderStructure() {
   }
 
   // Create a new Root Tree node
-  const handleCreateTree = async () => {
+  const handleCreateTree = () => {
     if (!newTreeTitle.trim()) return
     try {
       const title = newTreeTitle.trim()
+      const id = crypto.randomUUID()
+      const newHandle = createDocumentHandle({
+        documentId: id,
+        documentType: 'sanity.tree',
+      })
+      apply(createDocument(newHandle, { title } as any))
+      setSelectedTreeId(id)
       setNewTreeTitle('')
       setIsCreatingTree(false)
-      const res = await client.create({
-        _type: 'sanity.tree',
-        title,
-      })
-      setSelectedTreeId(res._id)
     } catch (err) {
       console.error('Failed to create tree:', err)
       alert('Error creating root tree. See console.')
@@ -68,30 +66,38 @@ export function FolderStructure() {
   }
 
   // Helper to create a new Folder (directory)
-  const handleCreateDirectory = async (parentRef: string, defaultName = 'New Folder') => {
+  const handleCreateDirectory = (parentRef: string, defaultName = 'New Folder') => {
     try {
       const name = prompt('Enter folder name:', defaultName)
       if (!name) return
-      await client.create({
-        _type: 'sanity.directory',
+      const id = crypto.randomUUID()
+      const newHandle = createDocumentHandle({
+        documentId: id,
+        documentType: 'sanity.directory',
+      })
+      apply(createDocument(newHandle, {
         name,
         parent: { _type: 'reference', _ref: parentRef },
-      })
+      } as any))
     } catch (err) {
       console.error('Failed to create folder:', err)
     }
   }
 
   // Helper to create a new Page
-  const handleCreatePage = async (parentRef: string, defaultTitle = 'New Page') => {
+  const handleCreatePage = (parentRef: string, defaultTitle = 'New Page') => {
     try {
       const title = prompt('Enter page title:', defaultTitle)
       if (!title) return
-      await client.create({
-        _type: 'page',
+      const id = crypto.randomUUID()
+      const newHandle = createDocumentHandle({
+        documentId: id,
+        documentType: 'page',
+      })
+      apply(createDocument(newHandle, {
         title,
         parent: { _type: 'reference', _ref: parentRef },
-      })
+      } as any))
     } catch (err) {
       console.error('Failed to create page:', err)
     }
@@ -194,7 +200,7 @@ export function FolderStructure() {
 
 // Tree Selector Item
 function TreeSelectorItem({ handle, isSelected, onSelect }: { handle: DocumentHandle; isSelected: boolean; onSelect: (id: string) => void }) {
-  const { data } = useDocumentProjection({
+  const { data } = useDocumentProjection<{ title?: string }>({
     ...handle,
     projection: '{ title }',
   })
@@ -235,7 +241,7 @@ function ActiveTreeExplorer({
   onCreatePage: (parentRef: string) => void
 }) {
   const treeHandle = { documentId: treeId, documentType: 'sanity.tree' } as const
-  const { data: treeData } = useDocumentProjection({
+  const { data: treeData } = useDocumentProjection<{ title?: string }>({
     ...treeHandle,
     projection: '{ title }',
   })
@@ -326,7 +332,7 @@ function DirectoryNode({
   onCreateFolder: (parentRef: string) => void
   onCreatePage: (parentRef: string) => void
 }) {
-  const { data } = useDocumentProjection({
+  const { data } = useDocumentProjection<{ name?: string; parentRef?: string }>({
     ...handle,
     projection: '{ name, "parentRef": parent._ref }',
   })
@@ -404,7 +410,7 @@ function PageNode({
   activeId: string | null
   onSelect: (handle: DocumentHandle, data: any) => void
 }) {
-  const { data } = useDocumentProjection({
+  const { data } = useDocumentProjection<{ title?: string; parentRef?: string }>({
     ...handle,
     projection: '{ title, "parentRef": parent._ref }',
   })
@@ -441,22 +447,25 @@ function InspectorPanel({
   const isDir = handle.documentType === 'sanity.directory'
 
   // Real-time fields using hooks
-  const { data: title } = useDocument({ ...handle, path: isDir ? 'name' : 'title' })
+  const { data: title } = useDocument<string>({ ...handle, path: isDir ? 'name' : 'title' })
   const editTitle = useEditDocument({ ...handle, path: isDir ? 'name' : 'title' })
+  const editParent = useEditDocument({ ...handle, path: 'parent' })
   const applyActions = useApplyDocumentActions()
 
   const [moveToParentId, setMoveToParentId] = useState('')
   const [releaseName, setReleaseName] = useState('')
   const [isDrafting, setIsDrafting] = useState(false)
 
+  // Fetch direct children of this document to support safe deletion
+  const { data: children } = useQuery<{ _id: string; _type: string }[]>({
+    query: `*[parent._ref == "${handle.documentId}"]{ _id, _type }`
+  })
+
   // Move function (patches the parent reference)
-  const handleMove = async () => {
+  const handleMove = () => {
     if (!moveToParentId) return
     try {
-      await client
-        .patch(handle.documentId)
-        .set({ parent: { _type: 'reference', _ref: moveToParentId } })
-        .commit()
+      editParent({ _type: 'reference', _ref: moveToParentId } as any)
       alert('Moved successfully!')
       setMoveToParentId('')
     } catch (err) {
@@ -465,58 +474,57 @@ function InspectorPanel({
     }
   }
 
-  // Delete function (with recursive safety like index.js)
-  const handleDelete = async () => {
+  // Delete function (with recursive safety using useApplyDocumentActions)
+  const handleDelete = () => {
     const confirmDelete = window.confirm(`Are you sure you want to delete this ${isDir ? 'folder' : 'page'}?`)
     if (!confirmDelete) return
 
     try {
-      if (isDir) {
-        // Safe recursive deletion of children
-        const children = await client.fetch(`*[parent._ref == $id]._id`, { id: handle.documentId })
-        if (children.length > 0) {
-          const cascade = window.confirm(`This folder contains ${children.length} items. Delete them recursively?`)
-          if (!cascade) return
+      if (isDir && children && children.length > 0) {
+        const cascade = window.confirm(`This folder contains ${children.length} items. Delete them recursively?`)
+        if (!cascade) return
 
-          const transaction = client.transaction()
-          children.forEach(cid => transaction.delete(cid))
-          transaction.delete(handle.documentId)
-          await transaction.commit()
-        } else {
-          await client.delete(handle.documentId)
-        }
+        const deleteActions = children.map(child =>
+          deleteDocument({ documentId: child._id, documentType: child._type })
+        )
+        applyActions([...deleteActions, deleteDocument(handle)])
       } else {
-        await client.delete(handle.documentId)
+        applyActions(deleteDocument(handle))
       }
       setSelectedItem(null)
       alert('Deleted successfully!')
-    } catch (err) {
+    } catch (err: any) {
       console.error('Deletion failed:', err)
       alert(`Delete failed: ${err.message || err}`)
     }
   }
 
   // Release drafting helper (Step 6 of index.js)
-  const handleDraftInRelease = async () => {
+  const handleDraftInRelease = () => {
     if (!releaseName.trim()) return
     setIsDrafting(true)
     try {
-      // 1. Create Release document
-      const release = await client.create({
-        _type: 'sanity.release',
-        title: releaseName.trim()
+      const releaseId = crypto.randomUUID()
+      const releaseHandle = createDocumentHandle({
+        documentId: releaseId,
+        documentType: 'sanity.release',
       })
 
-      // 2. Draft copy inside release context
-      const releaseDocId = `versions.${release._id}.${handle.documentId}`
-      await client.create({
-        _type: handle.documentType,
-        _id: releaseDocId,
-        ...(isDir ? { name: `${title} (Release Copy)` } : { title: `${title} (Release Copy)` }),
-        parent: data.parentRef ? { _type: 'reference', _ref: data.parentRef } : undefined
+      const releaseDocId = `versions.${releaseId}.${handle.documentId}`
+      const draftHandle = createDocumentHandle({
+        documentId: releaseDocId,
+        documentType: handle.documentType,
       })
 
-      alert(`Created Release "${release.title}" and created draft duplicate with ID: ${releaseDocId}!`)
+      applyActions([
+        createDocument(releaseHandle, { title: releaseName.trim() } as any),
+        createDocument(draftHandle, {
+          ...(isDir ? { name: `${title} (Release Copy)` } : { title: `${title} (Release Copy)` }),
+          parent: data.parentRef ? { _type: 'reference', _ref: data.parentRef } : undefined,
+        } as any),
+      ])
+
+      alert(`Created Release "${releaseName.trim()}" and created draft duplicate with ID: ${releaseDocId}!`)
       setReleaseName('')
     } catch (err) {
       console.error('Failed to draft in release:', err)
@@ -621,7 +629,7 @@ function InspectorPanel({
 
 // Select option item for rendering directory names inside dropdown
 function SelectOptionItem({ handle }: { handle: DocumentHandle }) {
-  const { data } = useDocumentProjection({
+  const { data } = useDocumentProjection<{ name?: string }>({
     ...handle,
     projection: '{ name }',
   })
