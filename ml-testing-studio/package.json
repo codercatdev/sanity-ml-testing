@@ -1,25 +1,25 @@
 {
-  "name": "ml-testing-app",
+  "name": "ml-testing",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
   "main": "package.json",
   "license": "UNLICENSED",
   "scripts": {
     "build": "sanity build",
     "deploy": "sanity deploy",
-    "dev": "sanity dev --port 3334",
+    "deploy-graphql": "sanity graphql deploy",
+    "dev": "sanity dev",
     "start": "sanity start"
   },
   "keywords": [
     "sanity"
   ],
   "dependencies": {
-    "@sanity/icons": "^3.7.4",
-    "@sanity/sdk": "^2",
-    "@sanity/sdk-react": "^2",
+    "@sanity/vision": "^5.24.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "sanity": "^5.24.0",
+    "styled-components": "^6.1.18"
   },
   "devDependencies": {
     "@sanity/eslint-config-studio": "^6.0.0",
@@ -27,8 +27,12 @@
     "@types/react": "^19.2.14",
     "eslint": "^9.28",
     "prettier": "^3.5",
-    "sanity": "^5.24.0",
-    "typescript": "^5.8",
-    "vite": "^8.0.11"
+    "typescript": "^5.8"
+  },
+  "prettier": {
+    "bracketSpacing": false,
+    "printWidth": 100,
+    "semi": false,
+    "singleQuote": true
   }
 }
